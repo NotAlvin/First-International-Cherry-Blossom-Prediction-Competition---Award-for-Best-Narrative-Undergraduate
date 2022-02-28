@@ -1,0 +1,314 @@
+---
+title: "Cherry Blossom Prediction"
+author: "Leung Hoi Kit Alvin"
+date: "2/21/2022"
+output: html_document
+---
+
+```{r}
+#Loading required libraries and data
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(stats)
+library(forecast)
+
+cherry <- read.csv("data/washingtondc.csv") %>% 
+  bind_rows(read.csv("data/liestal.csv")) %>% 
+  bind_rows(read.csv("data/kyoto.csv"))
+
+washington <- read.csv("data/washingtondc.csv")
+liestal <- read.csv("data/liestal.csv")
+kyoto <- read.csv("data/kyoto.csv")
+```
+
+```{r, fig.width=8, fig.height=3, out.width='100%', fig.cap="Time series of peak bloom of cherry trees since 1880 at three different sites."}
+
+par(mfrow=c(3,1))
+washington %>% 
+  filter(year >= 1880) %>%
+  ggplot(aes(x = year, y = bloom_doy)) +
+  geom_point(color = 'green') +
+  geom_step(linetype = 'dotted', color = 'gray50') +
+  scale_x_continuous(breaks = seq(1880, 2020, by = 20)) +
+  facet_grid(cols = vars(str_to_title(location))) +
+  labs(x = "Year", y = "Peak bloom (days since Jan 1st)")
+
+liestal %>% 
+  filter(year >= 1880) %>%
+  ggplot(aes(x = year, y = bloom_doy)) +
+  geom_point(color = 'blue') +
+  geom_step(linetype = 'dotted', color = 'gray50') +
+  scale_x_continuous(breaks = seq(1880, 2020, by = 20)) +
+  facet_grid(cols = vars(str_to_title(location))) +
+  labs(x = "Year", y = "Peak bloom (days since Jan 1st)")
+
+kyoto %>% 
+  filter(year >= 1880) %>%
+  ggplot(aes(x = year, y = bloom_doy)) +
+  geom_point(color = 'orange') +
+  geom_step(linetype = 'dotted', color = 'gray50') +
+  scale_x_continuous(breaks = seq(1880, 2020, by = 20)) +
+  facet_grid(cols = vars(str_to_title(location))) +
+  labs(x = "Year", y = "Peak bloom (days since Jan 1st)")
+```
+Creating test and train sets for each of our locations to fit SARIMA model
+
+1. Washington
+```{r}
+w_train <- head(washington, round(nrow(washington) * 0.8))
+w_h <- nrow(washington) - nrow(w_train)
+w_test <- tail(washington, w_h)
+
+w_train <- ts(w_train$bloom_doy, frequency = 1)
+w_test <- ts(w_test$bloom_doy, frequency = 1)
+
+plot(w_train)
+plot(w_test)
+```
+Getting model parameters
+```{r}
+mean(w_train)
+w_train.diff <- diff(w_train)
+mean(w_train.diff)
+plot(w_train.diff)
+acf(w_train.diff)
+pacf(w_train.diff)
+```
+```{r}
+#Choosing parameters based on ACF and PACF
+pdqParam = c(10, 0, 7)
+w_fit <- arima(w_train, pdqParam)
+w_fit2 <- auto.arima(w_train)
+```
+```{r}
+w_predictions <- forecast(w_fit, h=20)
+w_predictions_2 <- forecast(w_fit2, h=20)
+plot(w_predictions)
+lines(washington$bloom_doy,col="red")
+lines(w_predictions_2$mean,col="black")
+```
+```{r}
+washington_data <- ts(washington$bloom_doy, frequency = 1)
+washington_model <- arima(washington_data, pdqParam)
+washington_predictions <- forecast(washington_model, h=10)
+plot(washington_predictions)
+lines(washington$bloom_doy,col="red")
+```
+```{r}
+round(washington_predictions$mean)
+```
+2. Kyoto
+```{r}
+kyoto_new <- tail(kyoto, 101)
+k_train <- head(kyoto_new, round(nrow(kyoto_new) * 0.8))
+k_h <- nrow(kyoto_new) - nrow(k_train)
+k_test <- tail(kyoto_new, k_h)
+
+k_train <- ts(k_train$bloom_doy, frequency = 1)
+k_test <- ts(k_test$bloom_doy, frequency = 1)
+
+plot(k_train)
+plot(k_test)
+```
+Getting model parameters
+```{r}
+mean(k_train)
+k_train.diff <- diff(k_train)
+mean(k_train.diff)
+plot(k_train.diff)
+acf(k_train.diff)
+pacf(k_train.diff)
+```
+```{r}
+#Choosing parameters based on ACF and PACF
+pdqParam = c(8, 2, 7)
+k_fit <- arima(k_train, pdqParam)
+k_fit_2 <- auto.arima(k_train)
+```
+```{r}
+k_predictions <- forecast(k_fit, h=20)
+k_predictions_2 <- forecast(k_fit_2, h=20)
+plot(k_predictions)
+lines(kyoto_new$bloom_doy,col="red")
+lines(k_predictions_2$mean, col = "black")
+```
+```{r}
+kyoto_data <- ts(kyoto_new$bloom_doy, frequency = 1)
+kyoto_model <- arima(kyoto_data, pdqParam)
+kyoto_predictions <- forecast(kyoto_model, h=10)
+plot(kyoto_predictions)
+lines(kyoto_new$bloom_doy,col="red")
+```
+
+2. Liestal
+```{r}
+liestal_new <- tail(liestal, 101)
+l_train <- head(liestal_new, round(nrow(liestal_new) * 0.8))
+l_h <- nrow(liestal_new) - nrow(l_train)
+l_test <- tail(liestal_new, l_h)
+
+l_train <- ts(l_train$bloom_doy, frequency = 1)
+l_test <- ts(l_test$bloom_doy, frequency = 1)
+
+plot(l_train)
+plot(l_test)
+```
+Getting model parameters
+```{r}
+mean(l_train)
+l_train.diff <- diff(l_train)
+mean(l_train.diff)
+plot(l_train.diff)
+acf(l_train.diff)
+pacf(l_train.diff)
+```
+```{r}
+#Choosing parameters based on ACF and PACF
+pdqParam = c(1, 1, 6)
+l_fit <- arima(l_train, pdqParam)
+l_fit_2 <- auto.arima(l_train)
+```
+```{r}
+l_predictions <- forecast(l_fit, h=20)
+l_predictions_2 <- forecast(l_fit_2, h=20)
+plot(l_predictions)
+lines(liestal_new$bloom_doy,col="red")
+lines(l_predictions_2$mean, col = "black")
+```
+```{r}
+liestal_data <- ts(liestal_new$bloom_doy, frequency = 1)
+liestal_model <- arima(liestal_data, pdqParam)
+liestal_predictions <- forecast(liestal_model, h=10)
+plot(liestal_predictions)
+lines(liestal_new$bloom_doy,col="red")
+```
+
+```{r, eval = FALSE}
+stations <- ghcnd_stations()
+```
+
+```{r}
+#' Get the annual average maximum temperature at the given station,
+#' separated into the 4 meteorological seasons (Winter, Spring, Summer, Fall).
+#' 
+#' The seasons are span 3 months each.
+#' Winter is from December to February, Spring from March to May,
+#' Summer from June to August, and Fall from September to November.
+#' Note that December is counted towards the Winter of the next year, i.e.,
+#' temperatures in December 2020 are accounted for in Winter 2021.
+#' 
+#' @param stationid the `rnoaa` station id (see [ghcnd_stations()])
+#' @return a data frame with columns
+#'   - `year` ... the year of the observations
+#'   - `season` ... the season (Winter, Spring, Summer, Fall)
+#'   - `tmax_avg` ... average maximum temperate in tenth degree Celsius
+get_temperature <- function (stationid) {
+  ghcnd_search(stationid = stationid, var = c("tmax"), 
+               date_min = "1950-01-01", date_max = "2022-01-31")[[1]] %>%
+    mutate(year = as.integer(format(date, "%Y")),
+           month = as.integer(strftime(date, '%m')) %% 12, # make December "0"
+           season = cut(month, breaks = c(0, 2, 5, 8, 11),
+                        include.lowest = TRUE,
+                        labels = c("Winter", "Spring", "Summer", "Fall")),
+           year = if_else(month == 0, year + 1L, year)) %>%
+    group_by(year, season) %>%
+    summarize(tmax_avg = mean(tmax, na.rm = TRUE))
+}
+
+historic_temperatures <-
+  tibble(location = "washingtondc", get_temperature("USC00186350")) %>%
+  bind_rows(tibble(location = "liestal", get_temperature("GME00127786"))) %>%
+  bind_rows(tibble(location = "kyoto", get_temperature("JA000047759"))) %>%
+  bind_rows(tibble(location = "vancouver", get_temperature("CA001108395")))
+
+historic_temperatures %>%
+  ggplot() + 
+  aes(year, tmax_avg) + 
+  geom_line() +
+  xlim(1950, 2031) +
+  labs(x = "Year", y = "Average maximum temperature (1/10 °C)") +
+  facet_grid(factor(season) ~ str_to_title(location))
+```
+```{r}
+w1 = merge(washington, historic_temperatures, by = c("location", "year"))
+w2 = filter(w1, season == "Winter")
+l1 = merge(liestal, historic_temperatures, by = c("location", "year"))
+l2 = filter(l1, season == "Winter")
+k1 = merge(kyoto, historic_temperatures, by = c("location", "year"))
+k2 = filter(k1, season == "Winter")
+allcountry <- tibble(w2) %>% bind_rows(tibble(l2)) %>% bind_rows(tibble(k2))
+```
+
+```{r}
+washington_new <- filter(allcountry, location == "washingtondc")
+liestal_new <- filter(allcountry, location == "liestal")
+kyoto_new <- filter(allcountry, location == "kyoto")
+```
+
+```{r}
+w_train_new <- head(washington_new, 61)
+w_test_new <- tail(washington_new, 10)
+#Choosing parameters based on ACF and PACF
+pdqParam = c(10, 0, 7)
+
+w_fit <- arima(ts(w_train_new$bloom_doy, frequency = 1), pdqParam, xreg = w_train_new$tmax_avg)
+```
+```{r}
+w_predictions <- predict(w_fit, n.ahead = 10, newxreg = ts(w_test_new$tmax_avg))
+
+
+plot(c(w_predictions$pred), ylim = c(80, 100))
+lines(ts(w_test_new$bloom_doy), col= "green")
+lines(c(w_predictions$pred), col = 'red')
+```
+```{r}
+plot(washington_new$tmax_avg, xlim = c(0, 90))
+temp_model <- auto.arima(ts(washington_new$tmax_avg, frequency = 1))
+washington_future_temps <- forecast(temp_model, h=10)
+lines(washington_future_temps$mean, col = "red")
+lines(washington_new$tmax_avg)
+```
+```{r}
+plot(kyoto_new$tmax_avg, xlim = c(0, 90))
+temp_model <- auto.arima(ts(kyoto_new$tmax_avg, frequency = 1))
+kyoto_future_temps <- forecast(temp_model, h=10)
+lines(kyoto_future_temps$mean, col = "red")
+lines(kyoto_new$tmax_avg)
+```
+```{r}
+plot(liestal_new$tmax_avg, xlim = c(0, 90))
+temp_model <- auto.arima(ts(liestal_new$tmax_avg, frequency = 1))
+liestal_future_temps <- forecast(temp_model, h=10)
+lines(liestal_future_temps$mean, col = "red")
+lines(liestal_new$tmax_avg)
+```
+
+Final Predictions using SARIMAX (Including temperature data)
+
+```{r}
+w_pdqParam = c(10, 0, 7)
+k_pdqParam = c(8, 2, 7)
+l_pdqParam = c(1, 1, 6)
+
+w_fit <- arima(ts(washington_new$bloom_doy, frequency = 1), w_pdqParam, xreg = washington_new$tmax_avg)
+w_predictions_final <- round(predict(w_fit, n.ahead = 10, newxreg = washington_future_temps$mean)$pred)
+
+k_fit <- arima(ts(kyoto_new$bloom_doy, frequency = 1), k_pdqParam, xreg = kyoto_new$tmax_avg)
+k_predictions_final <- round(predict(k_fit, n.ahead = 10, newxreg = kyoto_future_temps$mean)$pred)
+
+l_fit <- arima(ts(liestal_new$bloom_doy, frequency = 1), l_pdqParam, xreg = liestal_new$tmax_avg)
+l_predictions_final <- as.data.frame(round(predict(l_fit, n.ahead = 10, newxreg = liestal_future_temps$mean)$pred))
+
+v_predictions_final <- w_predictions_final
+```
+
+```{r}
+year <- c(2022:2031)
+submission_predictions <- as.data.frame(cbind(year, w_predictions_final, k_predictions_final, l_predictions_final, v_predictions_final))
+colnames(submission_predictions) <- c('year', 'kyoto', 'liestal', 'washingtondc', 'vancouver')
+```
+```{r, eval=FALSE}
+write.csv(submission_predictions, file = "cherry-predictions.csv",
+          row.names = FALSE)
+```
